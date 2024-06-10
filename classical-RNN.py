@@ -5,6 +5,7 @@ from sklearn.preprocessing import MinMaxScaler
 from matplotlib import pyplot as plt
 import numpy as np
 from tqdm import tqdm
+from sklearn.model_selection import train_test_split
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -49,13 +50,21 @@ def create_inout_sequences(input_data, tw):
 window = 10
 inout_seq = create_inout_sequences(temperatures, window)
 
+train, test = train_test_split(
+        inout_seq,
+        test_size=0.33,
+        random_state=42
+        )
+
+dill.dump((train, test), open('temperature_processed.pkl', 'wb'))
+
 
 loss_function = nn.MSELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
-epochs = 150
+epochs = 20
 for i in tqdm(range(epochs)):
-    for seq, labels in inout_seq:
+    for seq, labels in train:
         seq, labels = seq.to(device), labels.to(device)
         optimizer.zero_grad()
         model.hidden_cell = torch.zeros(1, 1, model.hidden_layer_size).to(device)
@@ -66,13 +75,25 @@ for i in tqdm(range(epochs)):
         single_loss.backward()
         optimizer.step()
 
-    if i % 10 == 0:
-        print(f'Epoch {i+1} loss: {single_loss.item()}')
+    if i % 2 == 0:
+        model.eval()
+
+        with torch.no_grad():
+            loss = []
+            for seq, labels in test:
+                seq, labels = seq.to(device), labels.to(device)
+                model.hidden_cell = torch.zeros(1, 1, model.hidden_layer_size).to(device)
+                y_pred = model(seq)
+                loss.append(loss_function(y_pred, labels))
+            print(f"Loss: {np.mean(loss)}")   
+
+
+        #print(f'Epoch {i+1} loss: {single_loss.item()}')
 
 print(f'Epoch {epochs} loss: {single_loss.item()}')
 
 model.eval()
-test_inputs = temperatures[-window:].tolist()
+test_inputs = temperatures[:window].tolist()
 
 for i in range(100):  # Predict 100 time steps into the future
     seq = torch.tensor(test_inputs[-window:], dtype=torch.float32).to(device)
@@ -80,9 +101,18 @@ for i in range(100):  # Predict 100 time steps into the future
         model.hidden_cell = torch.zeros(1, 1, model.hidden_layer_size).to(device)
         test_inputs.append(model(seq).item())
 
-predicted_temperatures = scaler.inverse_transform(np.array(test_inputs[window:]).reshape(-1, 1))
+predicted_temperatures = scaler.inverse_transform(np.array(test_inputs[:window]).reshape(-1, 1))
 
-plt.plot(scaler.inverse_transform(temperatures.reshape(-1, 1)), label="True Data")
-plt.plot(np.arange(len(temperatures), len(temperatures)+len(predicted_temperatures)), predicted_temperatures, label="Predicted Data")
+plt.plot(
+    scaler.inverse_transform(temperatures[:window].numpy().reshape(-1, 1)),
+    label="True Data"
+    )
+
+plt.plot(
+    np.arange(len(predicted_temperatures)),
+    predicted_temperatures,
+    linestyle='dashed',
+    label="Predicted Data")
+
 plt.legend()
 plt.show()
