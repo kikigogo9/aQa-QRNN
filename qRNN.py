@@ -130,3 +130,6 @@ with torch.no_grad():
   plt.plot(predictions, label='QRNN Prediction')
 plt.legend()
 plt.show()
+
+def accuracy(predicted_sequence, true_sequence):
+    return 1-np.sqrt(np.mean( np.square((predicted_sequence - true_sequence)/true_sequence) ))
