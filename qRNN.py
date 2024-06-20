@@ -84,12 +84,14 @@ train, test = train[:500], test[:500]
 
 optimizer = Adam([weights, rotations], lr=0.001)
 
-epoch = 40
-batch_size = 500
+epoch = 20*5
+batch_size = 100
 
 
 loss_history = []
 
+def accuracy(predicted_sequence, true_sequence):
+    return 1-np.sqrt(np.mean( np.square((predicted_sequence - true_sequence)/true_sequence) ))
 
 def closure():
     batch = random.choices(train, k=batch_size)
@@ -97,39 +99,38 @@ def closure():
     loss = cost(weights, rotations, batch)
     loss.backward()
     return loss
-  
-loss_history = []
-for i in tqdm(range(epoch)):
-  loss = optimizer.step(closure)
-  loss_history.append(loss.item())
-  #print(loss.item())
 
-dill.dump((weights, rotations), open('params.pkl', 'wb'))
+if __name__ == "__main__":
+  loss_history = []
+  for i in tqdm(range(epoch)):
+    loss = optimizer.step(closure)
+    loss_history.append(loss.item())
+    #print(loss.item())
 
-plt.plot(loss_history)
-plt.yscale('log')
-plt.show()
+  dill.dump((weights, rotations), open('params.pkl', 'wb'))
 
-### Show example
+  plt.plot(loss_history)
+  plt.yscale('log')
+  plt.show()
 
-weights, rotations = dill.load(open('params.pkl', 'rb'))
+  ### Show example
 
-xs = torch.cat((test[0][0], test[0][1]))
-plt.plot(xs, label='Original Data')
+  weights, rotations = dill.load(open('params.pkl', 'rb'))
 
-#print(cost(weights, rotations, test))
-with torch.no_grad():
-  predictions = [test[0][0][0]]
-  hidden_state = torch.zeros((1,))
-  for x in test[0][0]:
-    out = circuit(weights, rotations, x, hidden_state)
-    prediction = out[0]
-    hidden_state = out[1:]
-    predictions.append(prediction)
-  
-  plt.plot(predictions, label='QRNN Prediction')
-plt.legend()
-plt.show()
+  xs = torch.cat((test[0][0], test[0][1]))
+  plt.plot(xs, label='Original Data')
 
-def accuracy(predicted_sequence, true_sequence):
-    return 1-np.sqrt(np.mean( np.square((predicted_sequence - true_sequence)/true_sequence) ))
+  #print(cost(weights, rotations, test))
+  with torch.no_grad():
+    predictions = [test[0][0][0]]
+    hidden_state = torch.zeros((1,))
+    for x in test[0][0]:
+      out = circuit(weights, rotations, x, hidden_state)
+      prediction = out[0]
+      hidden_state = out[1:]
+      predictions.append(prediction)
+    
+    plt.plot(predictions, label='QRNN Prediction')
+  plt.legend()
+  plt.show()
+
