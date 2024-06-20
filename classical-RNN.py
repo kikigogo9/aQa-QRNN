@@ -7,7 +7,7 @@ import numpy as np
 from tqdm import tqdm
 from sklearn.model_selection import train_test_split
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = torch.device('cpu' if torch.cuda.is_available() else 'cpu')
 
 class TemperatureRNN(nn.Module):
     def __init__(self, input_size=1, hidden_layer_size=50, output_size=1, layer_dim=10):
@@ -32,9 +32,9 @@ model = TemperatureRNN().to(device)
 ### Load dataset
 dataset = dill.load(open("datasets/meteo.pkl", 'rb'))
 
-temperatures = dataset[:, 2]
+temperatures = dataset[:500, 2]
 
-scaler = MinMaxScaler(feature_range=(-1, 1))
+scaler = MinMaxScaler(feature_range=(-0.5, 0.5))
 temperatures = torch.from_numpy(scaler.fit_transform(temperatures.reshape(-1, 1)).reshape(-1)).to(dtype=torch.float32)
 
 
@@ -47,7 +47,7 @@ def create_inout_sequences(input_data, tw):
         inout_seq.append((train_seq, train_label))
     return inout_seq
 
-window = 10
+window = 7
 inout_seq = create_inout_sequences(temperatures, window)
 
 train, test = train_test_split(
@@ -93,18 +93,19 @@ for i in tqdm(range(epochs)):
 print(f'Epoch {epochs} loss: {single_loss.item()}')
 
 model.eval()
-test_inputs = temperatures[:window].tolist()
+test_input = temperatures[:100]
 
-for i in range(100):  # Predict 100 time steps into the future
-    seq = torch.tensor(test_inputs[-window:], dtype=torch.float32).to(device)
+data = []
+model.hidden_cell = torch.zeros(1, 1, model.hidden_layer_size).to(device)
+for i in range(10):  # Predict 100 time steps into the future
     with torch.no_grad():
-        model.hidden_cell = torch.zeros(1, 1, model.hidden_layer_size).to(device)
-        test_inputs.append(model(seq).item())
+        test_input = model(test_input)
+        data.append(test_input.item())
 
-predicted_temperatures = scaler.inverse_transform(np.array(test_inputs[:window]).reshape(-1, 1))
+predicted_temperatures = scaler.inverse_transform(np.array(data).reshape(-1, 1))
 
 plt.plot(
-    scaler.inverse_transform(temperatures[:window].numpy().reshape(-1, 1)),
+    scaler.inverse_transform(temperatures[100:110].numpy().reshape(-1, 1)),
     label="True Data"
     )
 
@@ -112,7 +113,8 @@ plt.plot(
     np.arange(len(predicted_temperatures)),
     predicted_temperatures,
     linestyle='dashed',
-    label="Predicted Data")
+    label="Predicted Data"
+    )
 
 plt.legend()
 plt.show()
