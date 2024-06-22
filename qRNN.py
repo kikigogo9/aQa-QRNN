@@ -84,8 +84,8 @@ train, test = train[:500], test[:500]
 
 optimizer = Adam([weights, rotations], lr=0.001)
 
-epoch = 20*5
-batch_size = 100
+epoch = 20
+batch_size = 500
 
 
 loss_history = []
