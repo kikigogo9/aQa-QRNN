@@ -75,7 +75,7 @@ def cost(weights, rotations, X):
         out = circuit(weights, rotations, x, hidden_state)
         prediction = out[0]
         hidden_state = out[1:]
-        loss += square_loss(y, prediction)
+      loss += square_loss(y, prediction)
     
     return loss/batch_size
 

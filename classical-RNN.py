@@ -34,9 +34,9 @@ dataset = dill.load(open("datasets/meteo.pkl", 'rb'))
 
 temperatures = dataset[:500, 2]
 
-scaler = MinMaxScaler(feature_range=(-0.5, 0.5))
+scaler = MinMaxScaler(feature_range=(0, 0.9))
 temperatures = torch.from_numpy(scaler.fit_transform(temperatures.reshape(-1, 1)).reshape(-1)).to(dtype=torch.float32)
-
+dill.dump(scaler, open("scaler.pkl", "wb"))
 
 def create_inout_sequences(input_data, tw):
     inout_seq = []
@@ -47,7 +47,7 @@ def create_inout_sequences(input_data, tw):
         inout_seq.append((train_seq, train_label))
     return inout_seq
 
-window = 7
+window = 4
 inout_seq = create_inout_sequences(temperatures, window)
 
 train, test = train_test_split(
@@ -62,7 +62,7 @@ dill.dump((train, test), open('temperature_processed.pkl', 'wb'))
 loss_function = nn.MSELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
-epochs = 20
+epochs = 200
 for i in tqdm(range(epochs)):
     for seq, labels in train:
         seq, labels = seq.to(device), labels.to(device)
@@ -96,25 +96,23 @@ model.eval()
 test_input = temperatures[:100]
 
 data = []
-model.hidden_cell = torch.zeros(1, 1, model.hidden_layer_size).to(device)
-for i in range(10):  # Predict 100 time steps into the future
-    with torch.no_grad():
-        test_input = model(test_input)
-        data.append(test_input.item())
+true_values = []
+with torch.no_grad():
+    rnn_predictions = []
+    for seq, label in test[:30]:
+        rnn_predictions += [model(seq).item()]
+        true_values += [label]
+    rnn_predictions = torch.Tensor(rnn_predictions)
+    true_values = torch.Tensor(true_values)
+    plt.plot(scaler.inverse_transform(rnn_predictions.reshape(-1, 1)), label='Predicted RNN')
+    plt.plot(scaler.inverse_transform(true_values.reshape(-1, 1)), label='Actual Temperature')
+    plt.title(f'Average Temperature over 30 days')
+    plt.xlabel('Day')
+    plt.ylabel('Temperature, Celsius')
+    plt.legend()
+    plt.show()
 
-predicted_temperatures = scaler.inverse_transform(np.array(data).reshape(-1, 1))
+def accuracy(predicted_sequence, true_sequence):
+    return 1-torch.sqrt(torch.mean( torch.square((predicted_sequence - true_sequence)/true_sequence) ))
 
-plt.plot(
-    scaler.inverse_transform(temperatures[100:110].numpy().reshape(-1, 1)),
-    label="True Data"
-    )
-
-plt.plot(
-    np.arange(len(predicted_temperatures)),
-    predicted_temperatures,
-    linestyle='dashed',
-    label="Predicted Data"
-    )
-
-plt.legend()
-plt.show()
+print(accuracy(rnn_predictions, true_values))
